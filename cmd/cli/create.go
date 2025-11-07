@@ -7,6 +7,7 @@ import (
 
 	cmd2 "github.com/axellelanca/urlshortener/cmd"
 	"github.com/axellelanca/urlshortener/internal/config"
+	"github.com/axellelanca/urlshortener/internal/models"
 	"github.com/axellelanca/urlshortener/internal/repository"
 	"github.com/axellelanca/urlshortener/internal/services"
 	"github.com/spf13/cobra"
@@ -17,14 +18,19 @@ import (
 // longURLFlag stockera la valeur du flag --url
 var longURLFlag string
 
+// expirationMinutesFlag stockera la durée d'expiration en minutes (optionnel, feature bonus)
+var expirationMinutesFlag int
+
 // CreateCmd représente la commande 'create'
 var CreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Crée une URL courte à partir d'une URL longue.",
 	Long: `Cette commande raccourcit une URL longue fournie et affiche le code court généré.
+Vous pouvez optionnellement spécifier une durée d'expiration avec --expires (feature bonus).
 
-Exemple:
-  url-shortener create --url="https://www.google.com/search?q=go+lang"`,
+Exemples:
+  url-shortener create --url="https://www.google.com/search?q=go+lang"
+  url-shortener create --url="https://www.google.com" --expires=60  # Expire dans 60 minutes`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Valider que le flag --url a été fourni.
 		if longURLFlag == "" {
@@ -64,16 +70,30 @@ Exemple:
 		linkRepo := repository.NewLinkRepository(db)
 		linkService := services.NewLinkService(linkRepo)
 
-		// Appeler le LinkService et la fonction CreateLink pour créer le lien court.
-		link, err := linkService.CreateLink(longURLFlag)
-		if err != nil {
-			log.Fatalf("FATAL: Échec de la création du lien court: %v", err)
+		// Vérifier si une durée d'expiration a été fournie (feature bonus)
+		var link *models.Link
+		if expirationMinutesFlag > 0 {
+			// Créer le lien avec expiration
+			fmt.Printf("Création d'un lien avec expiration: %d minutes\n", expirationMinutesFlag)
+			link, err = linkService.CreateLinkWithExpiration(longURLFlag, expirationMinutesFlag)
+			if err != nil {
+				log.Fatalf("FATAL: Échec de la création du lien avec expiration: %v", err)
+			}
+		} else {
+			// Créer le lien sans expiration
+			link, err = linkService.CreateLink(longURLFlag)
+			if err != nil {
+				log.Fatalf("FATAL: Échec de la création du lien court: %v", err)
+			}
 		}
 
 		fullShortURL := fmt.Sprintf("%s/%s", cfg.Server.BaseURL, link.ShortCode)
 		fmt.Printf("URL courte créée avec succès:\n")
 		fmt.Printf("Code: %s\n", link.ShortCode)
 		fmt.Printf("URL complète: %s\n", fullShortURL)
+		if link.ExpiresAt != nil {
+			fmt.Printf("Expire le: %s \u23f0\n", link.ExpiresAt.Format("2006-01-02 15:04:05"))
+		}
 	},
 }
 
@@ -83,7 +103,10 @@ func init() {
 	// Définir le flag --url pour la commande create.
 	CreateCmd.Flags().StringVarP(&longURLFlag, "url", "u", "", "L'URL longue à raccourcir")
 
-	// Marquer le flag comme requis
+	// Définir le flag --expires pour spécifier la durée d'expiration en minutes (optionnel, feature bonus)
+	CreateCmd.Flags().IntVarP(&expirationMinutesFlag, "expires", "e", 0, "Durée de vie du lien en minutes (optionnel)")
+
+	// Marquer le flag --url comme requis
 	CreateCmd.MarkFlagRequired("url")
 
 	// Ajouter la commande à RootCmd

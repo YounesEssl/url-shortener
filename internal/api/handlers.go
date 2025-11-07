@@ -51,7 +51,8 @@ func HealthCheckHandler(c *gin.Context) {
 
 // CreateLinkRequest représente le corps de la requête JSON pour la création d'un lien.
 type CreateLinkRequest struct {
-	LongURL string `json:"long_url" binding:"required,url"` // 'binding:required' pour validation, 'url' pour format URL
+	LongURL           string `json:"long_url" binding:"required,url"` // 'binding:required' pour validation, 'url' pour format URL
+	ExpirationMinutes int    `json:"expiration_minutes,omitempty"`    // Durée de vie du lien en minutes (optionnel, feature bonus)
 }
 
 // CreateShortLinkHandler gère la création d'une URL courte.
@@ -65,24 +66,49 @@ func CreateShortLinkHandler(linkService *services.LinkService, cfg *config.Confi
 			return
 		}
 
-		// Appeler le LinkService (CreateLink pour créer le nouveau lien.
-		link, err := linkService.CreateLink(req.LongURL)
+		var link *models.Link
+		var err error
+
+		// Vérifier si une durée d'expiration a été fournie (feature bonus)
+		if req.ExpirationMinutes > 0 {
+			// Créer le lien avec expiration
+			log.Printf("Création d'un lien avec expiration: %d minutes", req.ExpirationMinutes)
+			link, err = linkService.CreateLinkWithExpiration(req.LongURL, req.ExpirationMinutes)
+		} else {
+			// Créer le lien sans expiration
+			link, err = linkService.CreateLink(req.LongURL)
+		}
+
 		if err != nil {
 			log.Printf("Error creating link: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create short link"})
+			// Si l'erreur concerne une durée d'expiration invalide, retourner un BadRequest
+			if req.ExpirationMinutes > 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create short link"})
+			}
 			return
 		}
 
-		// Retourne le code court et l'URL longue dans la réponse JSON.
-		c.JSON(http.StatusCreated, gin.H{
+		// Préparer la réponse JSON
+		response := gin.H{
 			"short_code":     link.ShortCode,
 			"long_url":       link.LongURL,
 			"full_short_url": cfg.Server.BaseURL + "/" + link.ShortCode,
-		})
+		}
+
+		// Ajouter la date d'expiration si le lien expire
+		if link.ExpiresAt != nil {
+			response["expires_at"] = link.ExpiresAt.Format(time.RFC3339)
+			response["expires_in_minutes"] = int(time.Until(*link.ExpiresAt).Minutes())
+		}
+
+		c.JSON(http.StatusCreated, response)
 	}
 }
 
 // RedirectHandler gère la redirection d'une URL courte vers l'URL longue et l'enregistrement asynchrone des clics.
+// Vérifie également si le lien a expiré (feature bonus).
 func RedirectHandler(linkService *services.LinkService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Récupère le shortCode de l'URL avec c.Param
@@ -101,6 +127,16 @@ func RedirectHandler(linkService *services.LinkService) gin.HandlerFunc {
 			// Gérer d'autres erreurs potentielles de la base de données ou du service
 			log.Printf("Error retrieving link for %s: %v", shortCode, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+			return
+		}
+
+		// Vérifier si le lien a expiré (feature bonus)
+		if link.IsExpired() {
+			log.Printf("Link %s has expired (expired at: %v)", shortCode, link.ExpiresAt)
+			c.JSON(http.StatusGone, gin.H{
+				"error":      "This link has expired",
+				"expired_at": link.ExpiresAt.Format(time.RFC3339),
+			})
 			return
 		}
 

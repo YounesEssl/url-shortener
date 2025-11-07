@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"time"
 
 	"gorm.io/gorm" // Nécessaire pour la gestion spécifique de gorm.ErrRecordNotFound
 
@@ -128,4 +129,64 @@ func (s *LinkService) GetLinkStats(shortCode string) (*models.Link, int, error) 
 
 	// on retourne les 3 valeurs
 	return link, count, nil
+}
+
+// CreateLinkWithExpiration crée un nouveau lien raccourci avec une date d'expiration.
+// Cette méthode fait partie des features bonus et permet de créer des liens temporaires.
+// Le paramètre expirationMinutes définit la durée de vie du lien en minutes.
+func (s *LinkService) CreateLinkWithExpiration(longURL string, expirationMinutes int) (*models.Link, error) {
+	// Validation de la durée d'expiration
+	if expirationMinutes <= 0 {
+		return nil, errors.New("la durée d'expiration doit être supérieure à 0 minutes")
+	}
+
+	// Limiter la durée maximale d'expiration à 1 an (525600 minutes)
+	if expirationMinutes > 525600 {
+		return nil, errors.New("la durée d'expiration ne peut pas dépasser 1 an (525600 minutes)")
+	}
+
+	// Générer un code court unique (même logique que CreateLink)
+	var shortCode string
+	maxRetries := 5
+
+	for i := 0; i < maxRetries; i++ {
+		code, err := s.GenerateShortCode(6)
+		if err != nil {
+			return nil, fmt.Errorf("error generating short code: %w", err)
+		}
+
+		_, err = s.linkRepo.GetLinkByShortCode(code)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				shortCode = code
+				break
+			}
+			return nil, fmt.Errorf("database error checking short code uniqueness: %w", err)
+		}
+		log.Printf("Short code '%s' already exists, retrying generation (%d/%d)...", code, i+1, maxRetries)
+	}
+
+	if shortCode == "" {
+		return nil, errors.New("failed to generate unique short code after multiple retries")
+	}
+
+	// Calculer la date d'expiration
+	expiresAt := time.Now().Add(time.Duration(expirationMinutes) * time.Minute)
+
+	// Créer le lien avec la date d'expiration
+	link := &models.Link{
+		ShortCode: shortCode,
+		LongURL:   longURL,
+		ExpiresAt: &expiresAt, // Pointeur vers la date d'expiration
+	}
+
+	// Persister le lien dans la base de données
+	err := s.linkRepo.CreateLink(link)
+	if err != nil {
+		return nil, fmt.Errorf("error creating link with expiration in database: %w", err)
+	}
+
+	log.Printf("Lien créé avec succès avec expiration dans %d minutes (expire le %s)",
+		expirationMinutes, expiresAt.Format("2006-01-02 15:04:05"))
+	return link, nil
 }
