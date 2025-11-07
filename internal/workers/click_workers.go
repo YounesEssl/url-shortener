@@ -22,7 +22,7 @@ func StartClickWorkers(workerCount int, clickEventsChan <-chan models.ClickEvent
 // Elle tourne indéfiniment, lisant les événements de clic dès qu'ils sont disponibles dans le channel.
 func clickWorker(clickEventsChan <-chan models.ClickEvent, clickRepo repository.ClickRepository) {
 	for event := range clickEventsChan { // Boucle qui lit les événements du channel
-		// TODO 1: Convertir le 'ClickEvent' (reçu du channel) en un modèle 'models.Click'.
+		// Convertir le 'ClickEvent' (reçu du channel) en un modèle 'models.Click'.
 		click := &models.Click{
 			LinkID:    event.LinkID,
 			Timestamp: event.Timestamp,
@@ -30,7 +30,7 @@ func clickWorker(clickEventsChan <-chan models.ClickEvent, clickRepo repository.
 			IPAddress: event.IPAddress,
 		}
 
-		// TODO 2: Persister le clic en base de données via le 'clickRepo' (CreateClick).
+		// Persister le clic en base de données via le 'clickRepo' (CreateClick).
 		// Implémentez ici une gestion d'erreur simple : loggez l'erreur si la persistance échoue.
 		// Pour un système en production, une logique de retry
 		err := clickRepo.CreateClick(click)
