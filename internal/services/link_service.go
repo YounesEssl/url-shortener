@@ -1,14 +1,14 @@
 package services
 
 import (
-	"crypto/rand"
-	"errors"
-	"fmt"
-	"log"
-	"math/big"
-	"time"
+	_ "crypto/rand"
+	_ "errors"
+	_ "fmt"
+	_ "log"
+	_ "math/big"
+	_ "time"
 
-	"gorm.io/gorm" // Nécessaire pour la gestion spécifique de gorm.ErrRecordNotFound
+	_ "gorm.io/gorm" // Nécessaire pour la gestion spécifique de gorm.ErrRecordNotFound
 
 	"github.com/axellelanca/urlshortener/internal/models"
 	"github.com/axellelanca/urlshortener/internal/repository" // Importe le package repository
@@ -21,6 +21,9 @@ const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 // LinkService est une structure qui g fournit des méthodes pour la logique métier des liens.
 // Elle détient linkRepo qui est une référence vers une interface LinkRepository.
 // IMPORTANT : Le champ doit être du type de l'interface (non-pointeur).
+type LinkService struct {
+	linkRepo repository.LinkRepository
+}
 
 
 // NewLinkService crée et retourne une nouvelle instance de LinkService.
@@ -45,10 +48,12 @@ func (s *LinkService) CreateLink(longURL string) (*models.Link, error) {
 	// Limitez le nombre de tentatives pour éviter une boucle infinie.
 
 	// TODO Créer une variable shortcode pour stocker le shortcode créé
+	// var shortCode string
 
 	// TODO Définir un nombre maximum (5) de tentative pour trouver un code unique  (maxRetries)
+	// maxRetries := 5
 
-
+	/*
 	for i := 0; i < maxRetries; i++ {
 		// TODO : Génère un code de 6 caractères (GenerateShortCode)
 
@@ -70,18 +75,19 @@ func (s *LinkService) CreateLink(longURL string) (*models.Link, error) {
 		log.Printf("Short code '%s' already exists, retrying generation (%d/%d)...", code, i+1, maxRetries)
 		// La boucle continuera pour générer un nouveau code.
 	}
+	*/
 
 	// TODO : Si après toutes les tentatives, aucun code unique n'a été trouvé... Errors.New
 
 
 	// TODO Crée une nouvelle instance du modèle Link.
-	link :=
+	// link :=
 
 	// TODO Persiste le nouveau lien dans la base de données via le repository (CreateLink)
 
 
 	// TODO Retourne le lien créé
-
+	return nil, nil
 }
 
 // GetLinkByShortCode récupère un lien via son code court.
@@ -89,7 +95,7 @@ func (s *LinkService) CreateLink(longURL string) (*models.Link, error) {
 func (s *LinkService) GetLinkByShortCode(shortCode string) (*models.Link, error) {
 	// TODO : Récupérer un lien par son code court en utilisant s.linkRepo.GetLinkByShortCode.
 	// Retourner le lien trouvé ou une erreur si non trouvé/problème DB.
-
+	return nil, nil
 }
 
 // GetLinkStats récupère les statistiques pour un lien donné (nombre total de clics).
@@ -101,6 +107,6 @@ func (s *LinkService) GetLinkStats(shortCode string) (*models.Link, int, error) 
 	// TODO 4: Compter le nombre de clics pour ce LinkID
 
 	// TODO : on retourne les 3 valeurs
-	return
+	return nil, 0, nil
 }
 
