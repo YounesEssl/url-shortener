@@ -11,6 +11,7 @@ import (
 
 	cmd2 "github.com/axellelanca/urlshortener/cmd"
 	"github.com/axellelanca/urlshortener/internal/api"
+	"github.com/axellelanca/urlshortener/internal/middleware"
 	"github.com/axellelanca/urlshortener/internal/models"
 	"github.com/axellelanca/urlshortener/internal/monitor"
 	"github.com/axellelanca/urlshortener/internal/repository"
@@ -73,9 +74,19 @@ puis lance le serveur HTTP.`,
 
 		log.Printf("Moniteur d'URLs démarré avec un intervalle de %v.", monitorInterval)
 
+		// Initialiser le rate limiter si activé (feature bonus)
+		var rateLimiter *middleware.IPRateLimiter
+		if cfg.RateLimiter.Enabled {
+			rateLimiter = middleware.NewIPRateLimiter(cfg.RateLimiter.MaxRequests, cfg.RateLimiter.WindowMinutes)
+			log.Printf("Rate limiter activé: %d requêtes max par IP toutes les %d minute(s)",
+				cfg.RateLimiter.MaxRequests, cfg.RateLimiter.WindowMinutes)
+		} else {
+			log.Println("Rate limiter désactivé")
+		}
+
 		// Configurer le routeur Gin et les handlers API.
 		router := gin.Default()
-		api.SetupRoutes(router, linkService, cfg)
+		api.SetupRoutes(router, linkService, cfg, rateLimiter)
 
 		// Pas toucher au log
 		log.Println("Routes API configurées.")
