@@ -23,14 +23,19 @@ func NewClickService(clickRepo repository.ClickRepository) *ClickService {
 // RecordClick enregistre un nouvel événement de clic dans la base de données.
 // Cette méthode est appelée par le worker asynchrone.
 func (s *ClickService) RecordClick(click *models.Click) error {
-	// TODO 1: Appeler le ClickRepository (CreateClick) pour créer l'enregistrement de clic.
-	// Gérer toute erreur provenant du repository.
+	err := s.clickRepo.CreateClick(click)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 // GetClicksCountByLinkID récupère le nombre total de clics pour un LinkID donné.
 // Cette méthode pourrait être utilisée par le LinkService pour les statistiques, ou directement par l'API stats.
 func (s *ClickService) GetClicksCountByLinkID(linkID uint) (int, error) {
-	// TODO 2: Appeler le ClickRepository (CountclicksByLinkID) pour compter les clics par LinkID.
-	return 0, nil
+	count, err := s.clickRepo.CountClicksByLinkID(linkID)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }
