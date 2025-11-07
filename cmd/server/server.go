@@ -75,7 +75,7 @@ puis lance le serveur HTTP.`,
 
 		// Configurer le routeur Gin et les handlers API.
 		router := gin.Default()
-		api.SetupRoutes(router, linkService)
+		api.SetupRoutes(router, linkService, cfg)
 
 		// Pas toucher au log
 		log.Println("Routes API configurées.")
