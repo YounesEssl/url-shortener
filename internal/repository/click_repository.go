@@ -1,10 +1,10 @@
 package repository
 
 import (
-	"fmt"
+    "fmt"
 
-	"github.com/axellelanca/urlshortener/internal/models"
-	"gorm.io/gorm"
+    "github.com/axellelanca/urlshortener/internal/models"
+    "gorm.io/gorm"
 )
 
 // TODO ClickRepository est une interface qui définit les méthodes d'accès aux données
@@ -12,7 +12,8 @@ import (
 // de rester indépendante de l'implémentation spécifique de la base de données.
 // Implémenter l'interface avec les méthodes nécessaires.
 type ClickRepository interface {
-	// Utilisé par LinkService pour les stats
+    CreateClick(click *models.Click) error
+    CountClicksByLinkID(linkID uint) (int, error)
 }
 
 // GormClickRepository est l'implémentation de l'interface ClickRepository utilisant GORM.

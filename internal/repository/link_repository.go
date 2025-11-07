@@ -1,24 +1,29 @@
 package repository
 
 import (
-	"fmt"
+    "fmt"
 
-	"github.com/axellelanca/urlshortener/internal/models"
-	"gorm.io/gorm"
+    "github.com/axellelanca/urlshortener/internal/models"
+    "gorm.io/gorm"
 )
 
-// TODO LinkRepository est une interface qui définit les méthodes d'accès aux données
-// pour les opérations CRUD sur les liens.
-// L'implémenter avec les méthodes nécessaires
+// LinkRepository définit les opérations d'accès aux données pour les liens
+type LinkRepository interface {
+    CreateLink(link *models.Link) error
+    GetLinkByShortCode(shortCode string) (*models.Link, error)
+    GetAllLinks() ([]models.Link, error)
+    CountClicksByLinkID(linkID uint) (int, error)
+}
 
 // TODO :  GormLinkRepository est l'implémentation de LinkRepository utilisant GORM.
 type GormLinkRepository struct {
+    db *gorm.DB
 }
 
 // NewLinkRepository crée et retourne une nouvelle instance de GormLinkRepository.
 // Cette fonction retourne *GormLinkRepository, qui implémente l'interface LinkRepository.
 func NewLinkRepository(db *gorm.DB) *GormLinkRepository {
-	// TODO
+    return &GormLinkRepository{db: db}
 }
 
 // CreateLink insère un nouveau lien dans la base de données.
