@@ -1,8 +1,6 @@
 package repository
 
 import (
-    "fmt"
-
     "github.com/axellelanca/urlshortener/internal/models"
     "gorm.io/gorm"
 )
@@ -15,7 +13,7 @@ type LinkRepository interface {
     CountClicksByLinkID(linkID uint) (int, error)
 }
 
-// TODO :  GormLinkRepository est l'implémentation de LinkRepository utilisant GORM.
+// GormLinkRepository est l'implémentation de LinkRepository utilisant GORM.
 type GormLinkRepository struct {
     db *gorm.DB
 }
