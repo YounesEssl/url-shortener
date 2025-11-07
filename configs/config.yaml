@@ -17,3 +17,9 @@ analytics:
 monitor:
   interval_minutes: 5                      # Intervalle en minutes entre chaque vérification de l'état des URLs longues.
   # Exemple: 1 pour chaque minute, 60 pour chaque heure.
+
+# Configuration du rate limiting (feature bonus)
+rate_limiter:
+  enabled: true                            # Activer ou désactiver le rate limiting
+  max_requests: 10                         # Nombre maximum de requêtes autorisées par IP
+  window_minutes: 1                        # Fenêtre de temps en minutes pour le comptage des requêtes

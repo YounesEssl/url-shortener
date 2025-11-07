@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/axellelanca/urlshortener/internal/config"
+	"github.com/axellelanca/urlshortener/internal/middleware"
 	"github.com/axellelanca/urlshortener/internal/models"
 	"github.com/axellelanca/urlshortener/internal/services"
 	"github.com/gin-gonic/gin"
@@ -17,8 +18,9 @@ import (
 // aux workers asynchrones. Il est bufferisé pour ne pas bloquer les requêtes de redirection.
 var ClickEventsChannel chan models.ClickEvent
 
-// SetupRoutes configure toutes les routes de l'API Gin et injecte les dépendances nécessaires
-func SetupRoutes(router *gin.Engine, linkService *services.LinkService, cfg *config.Config) {
+// SetupRoutes configure toutes les routes de l'API Gin et injecte les dépendances nécessaires.
+// Le rate limiter est optionnel (feature bonus) et peut être nil si désactivé.
+func SetupRoutes(router *gin.Engine, linkService *services.LinkService, cfg *config.Config, rateLimiter *middleware.IPRateLimiter) {
 	// Le channel est initialisé ici.
 	if ClickEventsChannel == nil {
 		// Créer le channel bufferisé
@@ -35,7 +37,13 @@ func SetupRoutes(router *gin.Engine, linkService *services.LinkService, cfg *con
 	// GET /links/:shortCode/stats
 	api := router.Group("/api/v1")
 	{
-		api.POST("/links", CreateShortLinkHandler(linkService, cfg))
+		// Appliquer le rate limiter uniquement à la route de création de liens (feature bonus)
+		// Cela protège contre les abus de création massive de liens
+		if rateLimiter != nil {
+			api.POST("/links", middleware.RateLimitMiddleware(rateLimiter), CreateShortLinkHandler(linkService, cfg))
+		} else {
+			api.POST("/links", CreateShortLinkHandler(linkService, cfg))
+		}
 		api.GET("/links/:shortCode/stats", GetLinkStatsHandler(linkService))
 	}
 
