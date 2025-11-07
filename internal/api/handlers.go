@@ -51,12 +51,12 @@ func HealthCheckHandler(c *gin.Context) {
 
 // CreateLinkRequest représente le corps de la requête JSON pour la création d'un lien.
 type CreateLinkRequest struct {
-	LongURL     string `json:"long_url" binding:"required,url"` // 'binding:required' pour validation, 'url' pour format URL
-	CustomAlias string `json:"custom_alias,omitempty"`          // Alias personnalisé optionnel (feature bonus)
+	LongURL           string `json:"long_url" binding:"required,url"` // 'binding:required' pour validation, 'url' pour format URL
+	CustomAlias       string `json:"custom_alias,omitempty"`          // Alias personnalisé optionnel (feature bonus)
+	ExpirationMinutes int    `json:"expiration_minutes,omitempty"`    // Durée de vie du lien en minutes (optionnel, feature bonus)
 }
 
 // CreateShortLinkHandler gère la création d'une URL courte.
-// Supporte maintenant les alias personnalisés optionnels (feature bonus).
 func CreateShortLinkHandler(linkService *services.LinkService, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req CreateLinkRequest
@@ -72,19 +72,22 @@ func CreateShortLinkHandler(linkService *services.LinkService, cfg *config.Confi
 
 		// Vérifier si un alias personnalisé a été fourni (feature bonus)
 		if req.CustomAlias != "" {
-			// Si un alias personnalisé est fourni, utiliser la méthode spécialisée
+			// Créer le lien avec l'alias personnalisé
 			log.Printf("Création d'un lien avec alias personnalisé: %s", req.CustomAlias)
 			link, err = linkService.CreateLinkWithCustomAlias(req.LongURL, req.CustomAlias)
+		} else if req.ExpirationMinutes > 0 {
+			// Créer le lien avec expiration
+			log.Printf("Création d'un lien avec expiration: %d minutes", req.ExpirationMinutes)
+			link, err = linkService.CreateLinkWithExpiration(req.LongURL, req.ExpirationMinutes)
 		} else {
-			// Sinon, générer un code court automatiquement
+			// Créer le lien sans options spéciales
 			link, err = linkService.CreateLink(req.LongURL)
 		}
 
-		// Gestion des erreurs
 		if err != nil {
 			log.Printf("Error creating link: %v", err)
-			// Si l'erreur concerne un alias personnalisé invalide, retourner un BadRequest
-			if req.CustomAlias != "" {
+			// Si l'erreur concerne un alias personnalisé ou une durée d'expiration invalide, retourner un BadRequest
+			if req.CustomAlias != "" || req.ExpirationMinutes > 0 {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			} else {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create short link"})
@@ -92,18 +95,30 @@ func CreateShortLinkHandler(linkService *services.LinkService, cfg *config.Confi
 			return
 		}
 
-		// Retourne le code court et l'URL longue dans la réponse JSON.
-		// Ajouter un indicateur si c'est un alias personnalisé
-		c.JSON(http.StatusCreated, gin.H{
+		// Préparer la réponse JSON
+		response := gin.H{
 			"short_code":     link.ShortCode,
 			"long_url":       link.LongURL,
 			"full_short_url": cfg.Server.BaseURL + "/" + link.ShortCode,
-			"is_custom":      link.IsCustom,
-		})
+		}
+
+		// Ajouter un indicateur si c'est un alias personnalisé
+		if link.IsCustom {
+			response["is_custom"] = true
+		}
+
+		// Ajouter la date d'expiration si le lien expire
+		if link.ExpiresAt != nil {
+			response["expires_at"] = link.ExpiresAt.Format(time.RFC3339)
+			response["expires_in_minutes"] = int(time.Until(*link.ExpiresAt).Minutes())
+		}
+
+		c.JSON(http.StatusCreated, response)
 	}
 }
 
 // RedirectHandler gère la redirection d'une URL courte vers l'URL longue et l'enregistrement asynchrone des clics.
+// Vérifie également si le lien a expiré (feature bonus).
 func RedirectHandler(linkService *services.LinkService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Récupère le shortCode de l'URL avec c.Param
@@ -122,6 +137,16 @@ func RedirectHandler(linkService *services.LinkService) gin.HandlerFunc {
 			// Gérer d'autres erreurs potentielles de la base de données ou du service
 			log.Printf("Error retrieving link for %s: %v", shortCode, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+			return
+		}
+
+		// Vérifier si le lien a expiré (feature bonus)
+		if link.IsExpired() {
+			log.Printf("Link %s has expired (expired at: %v)", shortCode, link.ExpiresAt)
+			c.JSON(http.StatusGone, gin.H{
+				"error":      "This link has expired",
+				"expired_at": link.ExpiresAt.Format(time.RFC3339),
+			})
 			return
 		}
 
