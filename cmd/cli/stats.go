@@ -6,6 +6,7 @@ import (
 	"log"
 
 	cmd2 "github.com/axellelanca/urlshortener/cmd"
+	"github.com/axellelanca/urlshortener/internal/config"
 	"github.com/axellelanca/urlshortener/internal/repository"
 	"github.com/axellelanca/urlshortener/internal/services"
 	"github.com/spf13/cobra"
@@ -33,10 +34,10 @@ Exemple:
 			log.Fatalf("FATAL: Le flag --code est requis")
 		}
 
-		// Charger la configuration chargée globalement via cmd.cfg
-		cfg := cmd2.Cfg
-		if cfg == nil {
-			log.Fatalf("FATAL: La configuration n'a pas été chargée correctement.")
+		// Charger la configuration
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			log.Fatalf("FATAL: Impossible de charger la configuration: %v", err)
 		}
 
 		// Initialiser la connexion à la BDD.
