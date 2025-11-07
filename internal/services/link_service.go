@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"regexp"
 
 	"gorm.io/gorm" // Nécessaire pour la gestion spécifique de gorm.ErrRecordNotFound
 
@@ -128,4 +129,63 @@ func (s *LinkService) GetLinkStats(shortCode string) (*models.Link, int, error) 
 
 	// on retourne les 3 valeurs
 	return link, count, nil
+}
+
+// CreateLinkWithCustomAlias crée un nouveau lien raccourci avec un alias personnalisé fourni par l'utilisateur.
+// Cette méthode fait partie des features bonus et permet aux utilisateurs de choisir leur propre code court.
+// Elle valide que l'alias respecte certaines règles (longueur, caractères autorisés) et qu'il n'existe pas déjà.
+func (s *LinkService) CreateLinkWithCustomAlias(longURL, customAlias string) (*models.Link, error) {
+	// Validation de l'alias personnalisé
+	// 1. Vérifier que l'alias n'est pas vide
+	if customAlias == "" {
+		return nil, errors.New("l'alias personnalisé ne peut pas être vide")
+	}
+
+	// 2. Vérifier la longueur de l'alias (entre 3 et 20 caractères)
+	if len(customAlias) < 3 || len(customAlias) > 20 {
+		return nil, errors.New("l'alias personnalisé doit contenir entre 3 et 20 caractères")
+	}
+
+	// 3. Vérifier que l'alias ne contient que des caractères alphanumériques et des tirets
+	// On utilise une regex pour valider le format
+	validAliasPattern := regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
+	if !validAliasPattern.MatchString(customAlias) {
+		return nil, errors.New("l'alias personnalisé ne peut contenir que des lettres, chiffres et tirets")
+	}
+
+	// 4. Vérifier que l'alias n'est pas un mot réservé (pour éviter les conflits avec les routes API)
+	reservedWords := []string{"api", "health", "stats", "admin", "create", "delete"}
+	for _, reserved := range reservedWords {
+		if customAlias == reserved {
+			return nil, fmt.Errorf("l'alias '%s' est un mot réservé et ne peut pas être utilisé", customAlias)
+		}
+	}
+
+	// 5. Vérifier que l'alias n'existe pas déjà en base de données
+	existingLink, err := s.linkRepo.GetLinkByShortCode(customAlias)
+	if err == nil && existingLink != nil {
+		// Si aucune erreur et qu'un lien existe, cela signifie que l'alias est déjà pris
+		return nil, fmt.Errorf("l'alias '%s' est déjà utilisé, veuillez en choisir un autre", customAlias)
+	}
+
+	// Si l'erreur n'est pas 'record not found', c'est une erreur de base de données
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("erreur lors de la vérification de l'alias: %w", err)
+	}
+
+	// L'alias est valide et disponible, on peut créer le lien
+	link := &models.Link{
+		ShortCode: customAlias,
+		LongURL:   longURL,
+		IsCustom:  true, // Marquer ce lien comme ayant un alias personnalisé
+	}
+
+	// Persister le lien dans la base de données
+	err = s.linkRepo.CreateLink(link)
+	if err != nil {
+		return nil, fmt.Errorf("erreur lors de la création du lien avec alias personnalisé: %w", err)
+	}
+
+	log.Printf("Lien créé avec succès avec l'alias personnalisé '%s'", customAlias)
+	return link, nil
 }

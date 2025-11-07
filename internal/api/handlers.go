@@ -51,10 +51,12 @@ func HealthCheckHandler(c *gin.Context) {
 
 // CreateLinkRequest représente le corps de la requête JSON pour la création d'un lien.
 type CreateLinkRequest struct {
-	LongURL string `json:"long_url" binding:"required,url"` // 'binding:required' pour validation, 'url' pour format URL
+	LongURL     string `json:"long_url" binding:"required,url"` // 'binding:required' pour validation, 'url' pour format URL
+	CustomAlias string `json:"custom_alias,omitempty"`          // Alias personnalisé optionnel (feature bonus)
 }
 
 // CreateShortLinkHandler gère la création d'une URL courte.
+// Supporte maintenant les alias personnalisés optionnels (feature bonus).
 func CreateShortLinkHandler(linkService *services.LinkService, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req CreateLinkRequest
@@ -65,19 +67,38 @@ func CreateShortLinkHandler(linkService *services.LinkService, cfg *config.Confi
 			return
 		}
 
-		// Appeler le LinkService (CreateLink pour créer le nouveau lien.
-		link, err := linkService.CreateLink(req.LongURL)
+		var link *models.Link
+		var err error
+
+		// Vérifier si un alias personnalisé a été fourni (feature bonus)
+		if req.CustomAlias != "" {
+			// Si un alias personnalisé est fourni, utiliser la méthode spécialisée
+			log.Printf("Création d'un lien avec alias personnalisé: %s", req.CustomAlias)
+			link, err = linkService.CreateLinkWithCustomAlias(req.LongURL, req.CustomAlias)
+		} else {
+			// Sinon, générer un code court automatiquement
+			link, err = linkService.CreateLink(req.LongURL)
+		}
+
+		// Gestion des erreurs
 		if err != nil {
 			log.Printf("Error creating link: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create short link"})
+			// Si l'erreur concerne un alias personnalisé invalide, retourner un BadRequest
+			if req.CustomAlias != "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create short link"})
+			}
 			return
 		}
 
 		// Retourne le code court et l'URL longue dans la réponse JSON.
+		// Ajouter un indicateur si c'est un alias personnalisé
 		c.JSON(http.StatusCreated, gin.H{
 			"short_code":     link.ShortCode,
 			"long_url":       link.LongURL,
 			"full_short_url": cfg.Server.BaseURL + "/" + link.ShortCode,
+			"is_custom":      link.IsCustom,
 		})
 	}
 }

@@ -10,4 +10,5 @@ type Link struct {
 	LongURL   string    `gorm:"not null"`                          // LongURL ne doit pas être null
 	CreatedAt time.Time `gorm:"autoCreateTime"`                    // Horodatage de la création du lien (géré automatiquement par GORM)
 	IsActive  bool      `gorm:"default:true"`                      // Indicateur si le lien est actif (pour la surveillance)
+	IsCustom  bool      `gorm:"default:false"`                     // Indicateur si le code court a été personnalisé par l'utilisateur (feature bonus)
 }
